@@ -132,14 +132,11 @@ class Wordle:
         self.yellow_letters = dict()
         self.green_letters = dict()
         
-    # Determins if the game is finished    
+    # Determins if the game is finished - 5 green letters or a guess count of 5
     def isFinished(self):
         if (len(self.green_letters) == 5) or (self.guess_count == 5):
             self.game_finished = True
-    
-    # GREEN = '\033[92m'
-    # YELLOW = '\033[93m'
-    # END = '\033[0m'
+
     # Displays guessed to the command line
     def display(self):
         for letter in self.current_guess:
@@ -196,7 +193,7 @@ class Wordle:
 # Main    
 def main():
     target_word = random.choice(wordle_list)
-    game = Wordle(wordle_list, "pizza")
+    game = Wordle(wordle_list, target_word)
     
     game.gameLoop()
        
