@@ -1,5 +1,6 @@
 import string
 import random
+import os
 
 # Importing possible Wordle answers
 with open('answers.txt', 'r') as file:
@@ -8,6 +9,20 @@ with open('answers.txt', 'r') as file:
 content_cleaned = content.strip().strip("[]").replace('"', '')
 wordle_list = content_cleaned.split(",")
 wordle_list = [word.strip() for word in wordle_list]
+
+# Importing possible guesses
+with open('words.txt', 'r') as file:
+    content = file.readlines()
+    guess_list = [line.strip() for line in content]
+    
+
+# 2D list containing the QWERTY keyboard in order
+keyboard = [
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+    ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+]
+
 
 class Wordle:
     # Init of wordle object
@@ -38,11 +53,14 @@ class Wordle:
         
         # Bool holding if game has been finished
         self.game_finished = False
+        
+        # List of all user guesses, and the letter colours
+        self.user_guesses = []
       
     # Function that moves guessed letters over from unguessed list  
     def guessLetter(self, letter): # VALIDATED
-        # Ensure letter exists in unguessed letters
-        if letter in self.unguessed_letters:
+        # Ensure letter exists in unguessed letters, and isn't a green or yellow letter
+        if (letter in self.unguessed_letters) and ((letter not in self.green_letters) or (letter not in self.yellow_letters)):
             # Move guessed letter over from unguessed list
             self.guessed_letters.append(letter)
             self.unguessed_letters.remove(letter)
@@ -138,8 +156,8 @@ class Wordle:
             self.game_finished = True
 
     # Displays guessed to the command line
-    def display(self):
-        for letter in self.current_guess:
+    def display(self, word):
+        for letter in word:
             if letter in self.green_letters.values():
                 print('\033[92m' + letter + '\033[0m', end=' ')
             elif letter in self.yellow_letters.values():
@@ -148,6 +166,7 @@ class Wordle:
                 print(f"{letter} ", end='')
         print('\n')
     
+    # Main game loop
     def gameLoop(self):
         # While condition indicating game hasn't been won yet
         while not self.game_finished:
@@ -159,9 +178,6 @@ class Wordle:
 
             # For loop for each letter in the guess
             for position in range(len(self.current_guess)):
-                # Guess the letter, remove it from unguessed list
-                self.guessLetter(self.current_guess[position])
-
                 # If letter is green, update it in the list
                 if self.isLetterGreen(self.current_guess[position], position):
                     self.updateGreen(self.current_guess[position], position)
@@ -177,7 +193,7 @@ class Wordle:
                 elif (self.current_guess[position] not in self.target_word):
                     self.filterOutLetter(self.current_guess[position]) 
             # Visually display guess
-            self.display()
+            self.display(self.current_guess)
             
             # Check win condition
             self.isFinished()
@@ -189,13 +205,132 @@ class Wordle:
         else:
             print(f"Unfortunetly, you have lost.")
             print("The word was " + '\033[91m' + self.target_word + '\033[0m' + " Please try again!")
-             
+        
+    # Game loop for a user game, simulates doing the actual Wordle    
+    def userGame(self):
+        # Increase possible word list
+        self.possible_words += guess_list
+
+        # While condition indicating game hasn't been won yet
+        while not self.game_finished:
+            # Get input from user
+            self.getUserInput()
+            
+            # If user enters a word not in the valid list, informs them, and reprompt them
+            if self.isValidGuess() == False:
+                print('\033[91m' + "Not a valid word." + '\033[0m')
+                continue
+            
+            # Increment guess count and log input
+            self.incrementGuess()
+            self.logInput()
+            
+            # For loop for each letter in the guess
+            # In a user game, we do not filter out the possible list
+            for position in range(len(self.current_guess)):
+
+                # If letter is green, update it in the list
+                if self.isLetterGreen(self.current_guess[position], position):
+                    self.updateGreen(self.current_guess[position], position)
+
+                # Elif letter is yellow, update it in the list
+                elif self.isLetterYellow(self.current_guess[position], position):
+                    self.updateYellow(self.current_guess[position], position)
+                    
+                # Guess the letter, remove it from unguessed list, if required
+                self.guessLetter(self.current_guess[position])
+                    
+            # Visually display guess
+            self.displayUser()
+            
+            # Check win condition
+            self.isFinished()
+        
+        # Check win/loss condition
+        if len(self.green_letters) == 5:
+            print(f"Congradulations! You have won!")
+            print("The word was: " + '\033[92m' + self.target_word + '\033[0m' + f" and you got it in {self.guess_count} guesses!")
+        else:
+            print(f"Unfortunetly, you have lost.")
+            print("The word was " + '\033[91m' + self.target_word + '\033[0m' + " Please try again!")
+            
+    def displayUser(self):
+        # Clear the screen
+        self.clearScreen()
+        
+        # Display current board
+        print("Current Wordle Board:")
+        print("---------------------")
+        for word in self.user_guesses:
+            self.display(word)
+        
+        #Display remaining letters, coloured and formatted
+        print("Letters remaining:")
+        print("---------------------")
+        for row in keyboard:
+            for letter in row:
+                # Green letter
+                if letter in self.green_letters.values():
+                    print('\033[92m' + letter + '\033[0m', end=' ')
+                # Yellow letter
+                elif letter in self.yellow_letters.values():
+                    print('\033[93m' + letter + '\033[0m', end=' ')
+                # Guessed letter not in word
+                elif letter in self.guessed_letters:
+                    print('\033[91m' + letter + '\033[0m', end=' ')
+                # Unused letter
+                else:
+                    print(letter, end=' ')
+            print('\n')
+           
+    # Function that clears the command line
+    def clearScreen(self):
+        # For Windows
+        if os.name == 'nt':
+            os.system('cls')
+        # For Unix/Linux/MacOS
+        else:
+            os.system('clear')
+            
+    # Function that logs user guess
+    def logInput(self):
+        self.user_guesses.append(self.current_guess)
+        
+    # Gets user input
+    def getUserInput(self):
+        self.current_guess = input("Enter word: ")
+        
+    # Increment guess count by 1
+    def incrementGuess(self):
+        self.guess_count += 1
+        
+    # Determines if guess is valid or not
+    def isValidGuess(self):
+        if self.current_guess not in self.possible_words:
+            return False
+    
+    # Promt user if they want to play, or have the computer solve
+    def userOrSolver(self):
+        user_input = input("Please select one of the following: \n 1) I want to play \n 2) I want the computer to solve \n 3) Exit \nPress 1, 2 or 3.\n")
+        return user_input
+              
 # Main    
 def main():
-    target_word = random.choice(wordle_list)
-    game = Wordle(wordle_list, target_word)
+    while 1:
+        # Init game
+        target_word = random.choice(wordle_list)
+        game = Wordle(wordle_list, target_word)
     
-    game.gameLoop()
+        # Get user choice
+        choice = game.userOrSolver()
+        if choice == '1':
+            game.clearScreen()
+            game.userGame()
+        elif choice == '2':
+            game.clearScreen()
+            game.gameLoop()
+        elif choice == '3':
+            break
        
 if __name__ == '__main__':
     main()
